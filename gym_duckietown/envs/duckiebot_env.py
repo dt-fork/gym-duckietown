@@ -28,7 +28,8 @@ CAMERA_HEIGHT = 64
 # Camera image shape
 IMG_SHAPE = (3, CAMERA_WIDTH, CAMERA_HEIGHT)
 
-
+# Port to connect to on the server
+SERVER_PORT = 7777
 
 def recvArray(socket):
     """Receive a numpy array over zmq"""
@@ -48,13 +49,8 @@ class DuckiebotEnv(gym.Env):
         'video.frames_per_second' : 30
     }
 
-    # Port to connect to on the server
-    SERVER_PORT = 7777
-
-
-    
     def __init__(self,
-                 serverAddr="localhost",
+                 serverAddr="couguar.local",
                  serverPort=SERVER_PORT):
         print("entering init!!!")
         # Two-tuple of wheel torques, each in the range [-1, 1]
@@ -84,7 +80,7 @@ class DuckiebotEnv(gym.Env):
 
         # We continually stream in images and then just take the latest one.
         self.latest_img = None
-        
+
         # For displaying text
         self.textLabel = pyglet.text.Label(
             font_name="Arial",
@@ -99,12 +95,12 @@ class DuckiebotEnv(gym.Env):
         self.socket = context.socket(zmq.PAIR)
         self.socket.connect("tcp://%s:%s" % (serverAddr, serverPort))
         print("connected! :)")
-        
+
         # Initialize the state
         self.seed()
         self.reset()
 
-                
+
     def _close(self):
         pass
 
@@ -116,12 +112,12 @@ class DuckiebotEnv(gym.Env):
             "command":"reset"
         })
 
-        
+
         # Receive a camera image from the server
         print("grabbing image..")
         self.img = recvArray(self.socket)
         print("got image")
-        
+
         # Return first observation
         return self.img.transpose()
 
@@ -137,7 +133,7 @@ class DuckiebotEnv(gym.Env):
         reward = 0
         # don't worry about episodes blah blah blah we will just shut down the robot when we're done
         done = False
-            # 
+            #
 # 1. execute action
         # Send the action to the server
         self.socket.send_json({
@@ -202,14 +198,3 @@ class DuckiebotEnv(gym.Env):
 
         if mode == 'human':
             self.window.flip()
-
-        
-
-
-
-
-
-
-        
-
-

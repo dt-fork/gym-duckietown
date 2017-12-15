@@ -21,16 +21,16 @@ def main():
         action = None
         if symbol == key.LEFT:
             print('left')
-            action = numpy.array([-1, 1])
+            action = numpy.array([-0.15, 0.15])
         elif symbol == key.RIGHT:
             print('right')
-            action = numpy.array([1, -1])
+            action = numpy.array([0.15, -0.15])
         elif symbol == key.UP:
             print('forward')
-            action = numpy.array([1, 1])
+            action = numpy.array([0.2, 0.2])
         elif symbol == key.DOWN:
             print('back')
-            action = numpy.array([-1, -1])
+            action = numpy.array([-0.1, -0.1])
         elif symbol == key.SLASH:
             print('RESET')
             action = None
