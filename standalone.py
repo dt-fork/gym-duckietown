@@ -5,12 +5,12 @@ from __future__ import division, print_function
 import numpy
 import gym
 
-from gym_duckietown.envs import DuckietownEnv
+from gym_duckietown.envs import DuckiebotEnv
 import pyglet
 
 def main():
 
-    env = gym.make('DuckiebotEnv')
+    env = gym.make('DuckiebotEnv-v0')
     env.reset()
 
     env.render()

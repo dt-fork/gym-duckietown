@@ -1,29 +1,62 @@
 #!/usr/bin/env python
-import rospy
-from transfer_learning.DuckiebotGymEnv import DuckiebotEnv
-from duckietown_utils.image_rescaling import d8_image_resize_no_interpolation
-from duckietown_utils.image_conversions import rgb_from_imgmsg
-from duckietown_msgs.msg import Twist2DStamped, Image
+
+import gym
+from gym import error, spaces, utils
+from gym.utils import seeding
+import math
+import time
+import numpy
+import zmq
+from PIL import Image
+import pyglet
+from pyglet.image import ImageData
+from pyglet.gl import *
+import numpy as np
+
+# For Python 3 compatibility
+import sys
+if sys.version_info > (3,):
+    buffer = memoryview
+
+# Rendering window size
+WINDOW_SIZE = 512
+
+# Camera image size
+CAMERA_WIDTH = 64
+CAMERA_HEIGHT = 64
+
+# Camera image shape
+IMG_SHAPE = (3, CAMERA_WIDTH, CAMERA_HEIGHT)
 
 
 
+def recvArray(socket):
+    """Receive a numpy array over zmq"""
+    md = socket.recv_json()
+    msg = socket.recv(copy=True, track=False)
+    buf = buffer(msg)
+    A = numpy.frombuffer(buf, dtype=md['dtype'])
+    A = A.reshape(md['shape'])
+    return A
 
 
 class DuckiebotEnv(gym.Env):
     """An environment that is the actual real robot """
-
-    rospy.init_node("transfer_learning", anonymous=True)
-    image_grabber = ImageGrabber()
-    sub_image = rospy.Subscriber("~image_rect", Image, cbImage, queue_size=1,tcp_nodelay=True)
-    pub_cmd   = rospy.Publisher("~wheels_cmd", WheelCmdStamped, queue_size=1)
 
     metadata = {
         'render.modes': ['human', 'rgb_array', 'app'],
         'video.frames_per_second' : 30
     }
 
+    # Port to connect to on the server
+    SERVER_PORT = 7777
+
+
     
-    def __init__(self):
+    def __init__(self,
+                 serverAddr="localhost",
+                 serverPort=SERVER_PORT):
+        print("entering init!!!")
         # Two-tuple of wheel torques, each in the range [-1, 1]
         self.action_space = spaces.Box(
             low=-1,
@@ -60,13 +93,16 @@ class DuckiebotEnv(gym.Env):
             y = WINDOW_SIZE - 19
         )
 
-
+        # Connect to the Gym bridge ROS node
+        print("connecting...")
+        context = zmq.Context()
+        self.socket = context.socket(zmq.PAIR)
+        self.socket.connect("tcp://%s:%s" % (serverAddr, serverPort))
+        print("connected! :)")
+        
         # Initialize the state
         self.seed()
         self.reset()
-
-    def cbImage(self, msg):
-        self.last_good_img = rgb_from_imgmsg(msg)
 
                 
     def _close(self):
@@ -75,10 +111,19 @@ class DuckiebotEnv(gym.Env):
     def _reset(self):
         # Step count since episode start
         self.stepCount = 0
-        obs = self._renderObs()
 
+        self.socket.send_json({
+            "command":"reset"
+        })
+
+        
+        # Receive a camera image from the server
+        print("grabbing image..")
+        self.img = recvArray(self.socket)
+        print("got image")
+        
         # Return first observation
-        return obs
+        return self.img.transpose()
 
     def _seed(self, seed=None):
         self.np_random, _ = seeding.np_random(seed)
@@ -92,28 +137,21 @@ class DuckiebotEnv(gym.Env):
         reward = 0
         # don't worry about episodes blah blah blah we will just shut down the robot when we're done
         done = False
-
             # 
 # 1. execute action
-        wheels_cmd_msg = Twist2DStamped()
-        wheels_cmd_msg.vel_right = action[0]
-        wheels_cmd_msg.vel_left = action[1]
-        self.pub_cmd.publish(wheels_cmd_msg)
+        # Send the action to the server
+        self.socket.send_json({
+            "command":"action",
+            "values": [ float(action[0]), float(action[1]) ]
+        })
 
 # 2. grab result image
-        obs = self._renderObs()
+        # Receive a camera image from the server
+        self.img = recvArray(self.socket)
 
-# 3. return image as "obs"
+# 3. return image as and other stuff which doesn't matter for now
+        return self.img.transpose(), reward, done, {}
 
-        self.stepCount += 1
-            
-        return obs, reward, done, {}
-
-    def _renderObs(self):
-        return d8_image_resize_no_interpolation(image_grabber.last_good_img,[64,64])
-        # return a camera frame
-
-        return self.latest_img
 
     def _render(self, mode='human', close=False):
         if close:
@@ -121,11 +159,8 @@ class DuckiebotEnv(gym.Env):
                 self.window.close()
             return
 
-        # Render the observation
-        img = self._renderObs()
-
         if mode == 'rgb_array':
-            return img
+            return self.img
 
         if self.window is None:
             context = pyglet.gl.get_current_context()
@@ -150,22 +185,20 @@ class DuckiebotEnv(gym.Env):
         glOrtho(0, WINDOW_SIZE, 0, WINDOW_SIZE, 0, 10)
 
         # Draw the image to the rendering window
-        width = img.shape[0]
-        height = img.shape[1]
-        img = np.uint8(img * 255)
+        width = self.img.shape[0]
+        height = self.img.shape[1]
         imgData = pyglet.image.ImageData(
             width,
             height,
             'RGB',
-            img.tobytes(),
+            self.img.tobytes(),
             pitch = width * 3,
         )
+        glPushMatrix()
+        glTranslatef(0, WINDOW_SIZE, 0)
+        glScalef(1, -1, 1)
         imgData.blit(0, 0, 0, WINDOW_SIZE, WINDOW_SIZE)
-
-        # Display position/state information
-        pos = self.curPos
-        self.textLabel.text = "(%.2f, %.2f, %.2f)" % (pos[0], pos[1], pos[2])
-        self.textLabel.draw()
+        glPopMatrix()
 
         if mode == 'human':
             self.window.flip()
