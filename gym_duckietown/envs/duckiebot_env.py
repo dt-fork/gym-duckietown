@@ -112,10 +112,11 @@ class DuckiebotEnv(gym.Env):
             "command":"reset"
         })
 
-
         # Receive a camera image from the server
         print("grabbing image..")
         self.img = recvArray(self.socket)
+        self.img = numpy.flip(self.img, axis=0)
+
         print("got image")
 
         # Return first observation
@@ -126,28 +127,24 @@ class DuckiebotEnv(gym.Env):
 
         return [seed]
 
-
     def _step(self, action):
 
         # we don't care about this reward since we're not training..
         reward = 0
         # don't worry about episodes blah blah blah we will just shut down the robot when we're done
         done = False
-            #
-# 1. execute action
+
         # Send the action to the server
         self.socket.send_json({
             "command":"action",
             "values": [ float(action[0]), float(action[1]) ]
         })
 
-# 2. grab result image
         # Receive a camera image from the server
         self.img = recvArray(self.socket)
+        self.img = numpy.flip(self.img, axis=0)
 
-# 3. return image as and other stuff which doesn't matter for now
         return self.img.transpose(), reward, done, {}
-
 
     def _render(self, mode='human', close=False):
         if close:
@@ -190,11 +187,7 @@ class DuckiebotEnv(gym.Env):
             self.img.tobytes(),
             pitch = width * 3,
         )
-        glPushMatrix()
-        glTranslatef(0, WINDOW_SIZE, 0)
-        glScalef(1, -1, 1)
         imgData.blit(0, 0, 0, WINDOW_SIZE, WINDOW_SIZE)
-        glPopMatrix()
 
         if mode == 'human':
             self.window.flip()
