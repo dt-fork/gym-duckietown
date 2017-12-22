@@ -46,5 +46,12 @@ compatibility with `gym-duckietown`. I recommend using the PPO or ACKTR implemen
 A sample command to launch training is:
 
 ```
-python3 main.py --env-name Duckietown-v0 --no-vis --num-processes 1 --algo a2c  --num-frames 10000000 --entropy-coef 0.22 --lr 0.0002
+python3 main.py --env-name Duckietown-v0 --no-vis --num-processes 1 --algo acktr  --num-frames 10000000 --entropy-coef 0.22 --lr 0.0002
+```
+
+Then, to visualize the result of training, you can run the following command.
+Note that you can do this while the training process is still ongoing.
+
+```
+python3 enjoy.py --env-name Duckie-SimpleSim-Discrete-v0 --num-stack 4 --load-dir trained_models/acktr
 ```
